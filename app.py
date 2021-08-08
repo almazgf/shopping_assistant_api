@@ -36,7 +36,10 @@ def create_user():
             "unacceptable_products": [],
         }
         mongo.db.users.insert(user)
-        return 'You have successfully registered'
+        user = mongo.db.users.find_one({'name': data['name']}, {'_id': 1, 'name': 1, 'password': 1})
+        access_token = create_access_token(identity=str(user['_id']))
+        refresh_token = create_refresh_token(identity=str(user['_id']))
+        return jsonify(access_token=access_token, refresh_token=refresh_token)
     return 'User exist'
 
 
@@ -86,11 +89,17 @@ def add_unacceptable_products():
     if request.method == 'POST':
         mongo.db.users.update({"_id": ObjectId(current_user)},
                               {'$addToSet': {'unacceptable_products': {'$each': unacceptable_products}}})
-        return jsonify("Указанные продукты добавлены в список нежелательных")
+
     if request.method == 'DELETE':
         mongo.db.users.update({"_id": ObjectId(current_user)},
                               {'$pullAll': {'unacceptable_products': unacceptable_products}})
-        return jsonify("Указанные продукты удалены из списка нежелательных")
+
+    unacceptable_products = mongo.db.users.find_one_or_404({"_id": ObjectId(current_user)},
+                                                           {'unacceptable_products': 1})
+    return_result = {
+        "unacceptable_products": unacceptable_products["unacceptable_products"]
+    }
+    return jsonify(return_result)
 
 
 # получение продукта по штрих-коду
@@ -107,7 +116,7 @@ def test_req():
     result = []
     for unacceptable in unacceptable_products['unacceptable_products']:
         for composition in product['composition']:
-            temp = re.search(f'(?i){unacceptable}', composition)
+            temp = re.search(f"(?i){unacceptable}", composition)
             if temp is not None:
                 result.append(composition)
     return_result = {
@@ -120,4 +129,4 @@ def test_req():
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='192.168.1.116', debug=True, port=5000)
